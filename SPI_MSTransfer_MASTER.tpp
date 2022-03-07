@@ -2,14 +2,23 @@
 #include "Arduino.h"
 #include "SPI.h"
 
+
 SPI_MSTransfer_MASTER_FUNC SPI_MSTransfer_MASTER_OPT::SPI_MSTransfer_MASTER() {
 }
 
+
 SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::begin() {
+#if defined(__IMXRT1062__)
+    IOMUXC_SW_PAD_CTL_PAD_GPIO_B0_01 = IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3) | IOMUXC_PAD_PKE; /* LPSPI4 SDI (MISO) */
+    IOMUXC_SW_PAD_CTL_PAD_GPIO_B0_02 = IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3) | IOMUXC_PAD_PKE; /* LPSPI4 SDO (MOSI) */
+    IOMUXC_SW_PAD_CTL_PAD_GPIO_B0_03 = IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3) | IOMUXC_PAD_PKE; /* LPSPI4 SCK (CLK) */
+    IOMUXC_SW_PAD_CTL_PAD_GPIO_B0_00 = IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3) | IOMUXC_PAD_PKE; /* LPSPI4 PCS0 (CS) */
+#endif
 }
 
+
 SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::spi_assert() {
-  port->beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
+  port->beginTransaction(SPISettings(spi_speed, MSBFIRST, SPI_MODE0));
   ::digitalWriteFast(cs_pin, LOW);
 }
 
@@ -78,7 +87,6 @@ SPI_MSTransfer_MASTER_FUNC int SPI_MSTransfer_MASTER_OPT::digitalRead(uint8_t pi
 }
 
 
-
 SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::detectSlaves() {
   uint8_t slave_count = 0;
   spi_assert();
@@ -99,6 +107,7 @@ SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::detectSlaves() {
   }
   Serial.printf("    No slaves detected, check connections.\n\n");
 }
+
 
 SPI_MSTransfer_MASTER_FUNC uint16_t SPI_MSTransfer_MASTER_OPT::transfer16(uint16_t *buffer, uint16_t length, uint16_t packetID) {
   uint16_t checksum = 0;
