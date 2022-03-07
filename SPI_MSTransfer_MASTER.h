@@ -19,9 +19,9 @@ typedef std::function<void(AsyncMST info)> _detectPtr;
 
 typedef void (*_SPI_ptr)();
 
-#define SPI_MSTransfer_MASTER_CLASS template<SPIClass* port, uint8_t cs_pin, uint32_t slave_ID>
-#define SPI_MSTransfer_MASTER_FUNC template<SPIClass* port, uint8_t cs_pin, uint32_t slave_ID>
-#define SPI_MSTransfer_MASTER_OPT SPI_MSTransfer_MASTER<port, cs_pin, slave_ID>
+#define SPI_MSTransfer_MASTER_CLASS template<SPIClass* port, uint8_t cs_pin, uint32_t slave_ID, uint32_t spi_speed = 2000000>
+#define SPI_MSTransfer_MASTER_FUNC template<SPIClass* port, uint8_t cs_pin, uint32_t slave_ID, uint32_t spi_speed>
+#define SPI_MSTransfer_MASTER_OPT SPI_MSTransfer_MASTER<port, cs_pin, slave_ID, spi_speed>
 
 extern SPIClass SPI;
 
