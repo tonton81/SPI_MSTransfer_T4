@@ -139,3 +139,49 @@ SPI_MSTransfer_MASTER_FUNC uint16_t SPI_MSTransfer_MASTER_OPT::transfer16(uint16
   if ( crc_passed ) return 1;
   return 0;
 }
+
+
+SPI_MSTransfer_MASTER_FUNC uint32_t SPI_MSTransfer_MASTER_OPT::events() {
+  uint16_t queues = 0;
+  spi_assert();
+  port->transfer16(0xDEAD);
+  port->transfer16(slave_ID);
+  port->transfer16(1);
+  port->transfer16(0xF1A0);
+  port->transfer16(0xF1A0);
+  port->transfer16(0xF1A0); /* can't checksum one word, so resend as checksum */
+  for ( uint16_t i = 0, result = 0; i < 10; i++ ) {
+    result = port->transfer16(0xFFFF);
+    if ( !queues && (result & 0xFF00) == 0xAD00 ) queues = (uint8_t)result;
+  }
+  if ( queues ) {
+    for ( uint16_t i = 0, result = 0; i < 10; i++ ) {
+      if ( result == 0xD632 ) break; /* we also break this loop after a dequeue */
+      result = port->transfer16(0xCEB6);
+      if ( result == 0xAA55 ) {
+        uint16_t buf[SPI_MST_DATA_BUFFER_MAX] = { 0xAA55, 10 }, pos = 1, checksum = 0xAA55;
+        for ( uint16_t i = 0; i < buf[1]; i++ ) {
+          buf[pos] = port->transfer16(0xCEB6);
+          if ( pos < buf[1] - 1 ) checksum ^= buf[pos];
+          pos++;
+          if ( pos >= buf[1] ) {
+            if ( checksum == buf[buf[1]-1] ) {
+              AsyncMST info; info.slaveID = buf[4]; info.packetID = buf[5];
+              if ( _master_handler != nullptr ) _master_handler(buf + 6, buf[1] - 7, info);
+              for ( uint16_t i = 0, result = 0; i < 10; i++ ) {
+                result = port->transfer16(0xCE0A);
+                if ( result == 0xD632 ) {
+                  queues--;
+                  break;
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+  spi_deassert();
+  return queues;
+}
