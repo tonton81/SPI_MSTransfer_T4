@@ -14,7 +14,7 @@ struct AsyncMST {
   uint16_t slaveID = 0;
 };
 
-typedef void (*_slave_handler_ptr)(uint16_t* buffer, uint16_t length, AsyncMST info);
+typedef void (*_master_handler_ptr)(uint16_t* buffer, uint16_t length, AsyncMST info);
 typedef std::function<void(AsyncMST info)> _detectPtr;
 
 typedef void (*_SPI_ptr)();
@@ -36,7 +36,7 @@ SPI_MSTransfer_MASTER_CLASS class SPI_MSTransfer_MASTER : public SPI_MSTransfer_
   public:
     SPI_MSTransfer_MASTER();
     void begin();
-    void onTransfer(_slave_handler_ptr handler) { _slave_handler = handler; }
+    void onTransfer(_master_handler_ptr handler) { _master_handler = handler; }
     uint16_t transfer16(uint16_t *buffer, uint16_t length, uint16_t packetID);
     void detectSlaves();
     uint32_t events();
@@ -51,7 +51,7 @@ SPI_MSTransfer_MASTER_CLASS class SPI_MSTransfer_MASTER : public SPI_MSTransfer_
     void spi_deassert();
     int _portnum = 0;
     uint32_t nvic_irq = 0;
-    _slave_handler_ptr _slave_handler;
+    _master_handler_ptr _master_handler;
 };
 
 #include "SPI_MSTransfer_MASTER.tpp"
