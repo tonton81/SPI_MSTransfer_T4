@@ -1,7 +1,7 @@
 #include <SPI_MSTransfer_T4.h>
 #include "Arduino.h"
 #include "SPI.h"
- 
+
 
 static void lpspi4_slave_isr() {
   _LPSPI4->SPI_MSTransfer_SLAVE_ISR();
@@ -114,6 +114,39 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         SPI_ENDWAIT_STATE
       }
       /* ##################################################################### */
+      /* ########################### ACCESS SLAVE'S QUEUE #################### */
+      /* ##################################################################### */
+      if ( data[3] == 0xF1A0 ) {
+        if ( !smtqueue.size() ) {
+          SPI_WAIT_STATE
+            (void)SLAVE_RDR;
+            SLAVE_TDR = 0xAD00;
+          SPI_ENDWAIT_STATE
+        }
+        else {
+          uint16_t buf[smtqueue.length_front()] = { 0 }, pos = 0, command = 0;
+          smtqueue.peek_front(buf, sizeof(buf) >> 1);
+          SPI_WAIT_STATE
+            command = SLAVE_RDR;
+            SLAVE_TDR = 0xAD00 | smtqueue.size();
+            if ( command == 0xCEB6 ) {
+              SPI_WAIT_STATE
+                command = SLAVE_RDR;
+                if ( pos >= (sizeof(buf) >> 1) ) pos = 0;
+                SLAVE_TDR = buf[pos++];
+                if ( command == 0xCE0A ) {
+                  smtqueue.pop_front();
+                  SPI_WAIT_STATE
+                    command = SLAVE_RDR;
+                    SLAVE_TDR = 0xD632;
+                  SPI_ENDWAIT_STATE
+                }
+              SPI_ENDWAIT_STATE
+            }
+          SPI_ENDWAIT_STATE
+        }
+      }
+      /* ##################################################################### */
       /* ########################### DIGITALWRITE ############################ */
       /* ##################################################################### */
       if ( data[3] == 0x1010 ) {
@@ -155,6 +188,25 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
   }
   SLAVE_SR = 0x3F00; /* Clear remaining flags on exit */
   asm volatile ("dsb");
+}
+
+
+SPI_MSTransfer_T4_FUNC uint16_t SPI_MSTransfer_T4_OPT::transfer16(uint16_t *buffer, uint16_t length, uint16_t packetID) {
+  uint16_t data[7 + length], checksum = 0, data_pos = 0;
+  data[data_pos] = 0xAA55; checksum ^= data[data_pos]; data_pos++; // HEADER
+  data[data_pos] = sizeof(data) >> 1; checksum ^= data[data_pos]; data_pos++; // DATA SIZE
+  data[data_pos] = 0x0000; checksum ^= data[data_pos]; data_pos++; // SUB SWITCH STATEMENT
+  data[data_pos] = length; checksum ^= data[data_pos]; data_pos++;
+  data[data_pos] = slave_ID; checksum ^= data[data_pos]; data_pos++;
+  data[data_pos] = packetID; checksum ^= data[data_pos]; data_pos++;
+  for ( uint16_t i = 0; i < length; i++ ) {
+    data[data_pos] = buffer[i];
+    checksum ^= data[data_pos];
+    data_pos++;
+  }
+  data[data_pos] = checksum;
+  smtqueue.push_back(data, data[1]);
+  return packetID;
 }
 
 
