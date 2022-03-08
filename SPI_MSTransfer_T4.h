@@ -54,12 +54,14 @@ class SPI_MSTransfer_T4_Base {
 static SPI_MSTransfer_T4_Base* _LPSPI4 = nullptr;
 
 Circular_Buffer<uint16_t, (uint32_t)pow(2, ceil(log(SPI_MST_QUEUE_SLOTS) / log(2))), SPI_MST_DATA_BUFFER_MAX> mstqueue;
+Circular_Buffer<uint16_t, (uint32_t)pow(2, ceil(log(SPI_MST_QUEUE_SLOTS) / log(2))), SPI_MST_DATA_BUFFER_MAX> smtqueue;
 
 SPI_MSTransfer_T4_CLASS class SPI_MSTransfer_T4 : public SPI_MSTransfer_T4_Base {
   public:
     SPI_MSTransfer_T4();
     void begin();
     void swapPins(bool enable = 1);
+    uint16_t transfer16(uint16_t *buffer, uint16_t length, uint16_t packetID);
     void onTransfer(_slave_handler_ptr handler) { _slave_handler = handler; }
     uint32_t events();
 
