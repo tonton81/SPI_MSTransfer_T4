@@ -36,7 +36,7 @@
 #define SLAVE_RDR (((uint16_t)(SLAVE_DH << 8)) | SLAVE_DL)
 #define SLAVE_TDR(x) \
     while ( !::digitalReadFast(10) && !(SLAVE_S & SPI_S_SPTEF) ); \
-    (SLAVE_DH = (uint8_t)((uint16_t)(x) >> 8)); \
+    (SLAVE_DH = (uint8_t)((x) >> 8)); \
     (SLAVE_DL = ((uint8_t)(x)));
 #endif
 
