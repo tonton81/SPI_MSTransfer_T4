@@ -121,7 +121,6 @@ SPI_MSTransfer_T4_CLASS class SPI_MSTransfer_T4 : public SPI_MSTransfer_T4_Base 
   public:
     SPI_MSTransfer_T4();
     void begin();
-    void swapPins(bool enable = 1);
     uint16_t transfer16(uint16_t *buffer, uint16_t length, uint16_t packetID);
     void onTransfer(_slave_handler_ptr handler) { _slave_handler = handler; }
     uint32_t events();
