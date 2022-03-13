@@ -267,7 +267,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
       /* ##################################################################### */
       if ( data[3] == 0x1011 ) {
         bool state = ::digitalReadFast(data[4]);
-        uint16_t buffer[4] = { 0xFFEA, 0xCCDA, state, 0 }, send_pos = 0;
+        uint16_t buffer[4] = { 0xFFEA, (sizeof(buffer) >> 1), state, 0 }, send_pos = 0;
         for ( uint16_t i = 0; i < 3; i++ ) buffer[3] ^= buffer[i];
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
@@ -280,6 +280,49 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
       /* ##################################################################### */
       if ( data[3] == 0x1012 ) {
         ::pinMode(data[4] >> 8, (uint8_t)data[4]);
+        SPI_WAIT_STATE
+          (void)SLAVE_RDR;
+          SLAVE_TDR(0xA5A5);
+        SPI_ENDWAIT_STATE
+      }
+      /* ##################################################################### */
+      /* ########################### ANALOGREAD ############################## */
+      /* ##################################################################### */
+      if ( data[3] == 0x1013 ) {
+        uint16_t val = ::analogRead(data[4]);
+        uint16_t buffer[4] = { 0xFFEA, (sizeof(buffer) >> 1), val, 0 }, send_pos = 0;
+        for ( uint16_t i = 0; i < 3; i++ ) buffer[3] ^= buffer[i];
+        SPI_WAIT_STATE
+          (void)SLAVE_RDR;
+          SLAVE_TDR(buffer[send_pos]);
+          if ( ++send_pos > 3 ) send_pos = 0;
+        SPI_ENDWAIT_STATE
+      }
+      /* ##################################################################### */
+      /* ########################### ANALOGREADRESOLUTION #################### */
+      /* ##################################################################### */
+      if ( data[3] == 0x1014 ) {
+        ::analogReadResolution(data[4]);
+        SPI_WAIT_STATE
+          (void)SLAVE_RDR;
+          SLAVE_TDR(0xA5A5);
+        SPI_ENDWAIT_STATE
+      }
+      /* ##################################################################### */
+      /* ########################### ANALOGWRITE ############################# */
+      /* ##################################################################### */
+      if ( data[3] == 0x1015 ) {
+        analogWrite(data[4], data[5]);
+        SPI_WAIT_STATE
+          (void)SLAVE_RDR;
+          SLAVE_TDR(0xA5A5);
+        SPI_ENDWAIT_STATE
+      }
+      /* ##################################################################### */
+      /* ########################### ANALOGWRITERESOLUTION ################### */
+      /* ##################################################################### */
+      if ( data[3] == 0x1016 ) {
+        ::analogWriteResolution(data[4]);
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
           SLAVE_TDR(0xA5A5);
