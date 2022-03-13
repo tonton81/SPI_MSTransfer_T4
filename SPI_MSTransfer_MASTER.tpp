@@ -36,60 +36,83 @@ SPI_MSTransfer_MASTER_FUNC uint16_t SPI_MSTransfer_MASTER_OPT::spi_transfer16(ui
 }
 
 
-SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::pinMode(uint8_t pin, uint8_t state) {
-  spi_assert();
-  spi_transfer16(0xDEAD);
-  spi_transfer16(slave_ID);
-  spi_transfer16(1);
-  spi_transfer16(0x1012);
-  spi_transfer16(((uint16_t)(pin << 8) | state));
-  spi_transfer16(((uint16_t)(pin << 8) | state)); /* can't checksum one word, so resend as checksum */
-  for ( uint16_t i = 0, result = 0; i < 10; i++ ) {
-    result = spi_transfer16(0xFFFF);
-    if ( result == 0xA5A5 ) break;
-  }
-  spi_deassert();
+SPI_MSTransfer_MASTER_FUNC uint16_t SPI_MSTransfer_MASTER_OPT::transfer16(uint16_t *buffer, uint16_t length, uint16_t packetID) {
+  uint16_t buf[5 + length] = { 0xDEAD, slave_ID, (uint16_t)(length + 1), 0xFAF, packetID };
+  for ( int i = 0; i < length; i++ ) buf[i + 5] = buffer[i];
+  process_data(buf, ((sizeof(buf) >> 1) - 4), buf[3]);
+  return buf[0];
 }
 
 
 SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::digitalWrite(uint8_t pin, bool state) {
-  spi_assert();
-  spi_transfer16(0xDEAD);
-  spi_transfer16(slave_ID);
-  spi_transfer16(1);
-  spi_transfer16(0x1010);
-  spi_transfer16(((uint16_t)(pin << 8) | state));
-  spi_transfer16(((uint16_t)(pin << 8) | state)); /* can't checksum one word, so resend as checksum */
-  for ( uint16_t i = 0, result = 0; i < 10; i++ ) {
-    result = spi_transfer16(0xFFFF);
-    if ( result == 0xA5A5 ) break;
-  }
-  spi_deassert();
+  uint16_t buf[5] = { 0xDEAD, slave_ID, 1, 0x1010, ((uint16_t)(pin << 8) | state) };
+  process_data(buf, ((sizeof(buf) >> 1) - 4), buf[3]);
 }
 
 
 SPI_MSTransfer_MASTER_FUNC int SPI_MSTransfer_MASTER_OPT::digitalRead(uint8_t pin) {
+  uint16_t buf[5] = { 0xDEAD, slave_ID, 1, 0x1011, pin };
+  process_data(buf, ((sizeof(buf) >> 1) - 4), buf[3]);
+  return buf[2];
+}
+
+
+SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::pinMode(uint8_t pin, uint8_t state) {
+  uint16_t buf[5] = { 0xDEAD, slave_ID, 1, 0x1012, ((uint16_t)(pin << 8) | state) };
+  process_data(buf, ((sizeof(buf) >> 1) - 4), buf[3]);
+}
+
+
+SPI_MSTransfer_MASTER_FUNC uint16_t SPI_MSTransfer_MASTER_OPT::analogRead(uint8_t pin) {
+  uint16_t buf[5] = { 0xDEAD, slave_ID, 1, 0x1013, pin };
+  process_data(buf, ((sizeof(buf) >> 1) - 4), buf[3]);
+  return buf[2];
+}
+
+
+SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::analogReadResolution(uint8_t bits) {
+  uint16_t buf[5] = { 0xDEAD, slave_ID, 1, 0x1014, bits };
+  process_data(buf, ((sizeof(buf) >> 1) - 4), buf[3]);
+}
+
+
+SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::analogWrite(uint8_t pin, uint16_t val) {
+  uint16_t buf[6] = { 0xDEAD, slave_ID, 2, 0x1015, pin, val };
+  process_data(buf, ((sizeof(buf) >> 1) - 4), buf[3]);
+}
+
+
+SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::analogWriteResolution(uint8_t bits) {
+  uint16_t buf[5] = { 0xDEAD, slave_ID, 1, 0x1016, bits };
+  process_data(buf, ((sizeof(buf) >> 1) - 4), buf[3]);
+}
+
+
+SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::process_data(uint16_t *buffer, uint16_t length, uint16_t command) {
+  uint16_t checksum = 0, csum_passed = 0;
   spi_assert();
-  spi_transfer16(0xDEAD);
-  spi_transfer16(slave_ID);
-  spi_transfer16(1);
-  spi_transfer16(0x1011);
-  spi_transfer16(pin);
-  spi_transfer16(pin); /* can't checksum one word, so resend as checksum */
-  uint32_t timeout = millis();
-  uint16_t response[4] = { 0 }, checksum = 0;
-  while ( millis() - timeout < 100 ) {
-    if ( spi_transfer16(0xFFFF) == 0xFFEA ) {
-      response[0] = checksum = 0xFFEA;
-      for (int i = 1; i < 4; i++) {
-        response[i] = spi_transfer16(0xFFFF);
-        if ( i < 3 ) checksum ^= response[i];
+  for ( uint16_t i = 0; i < length + 4; i++ ) {
+    spi_transfer16(buffer[i]);
+    if ( i > 3 ) checksum ^= buffer[i];
+  } spi_transfer16(checksum);
+  for ( uint16_t i = 0, result = 0; i < 10; i++ ) {
+    result = spi_transfer16(0xFFFF);
+    if ( result == 0xA5A5 ) { csum_passed = 1; break; }
+    if ( result == 0xE0E0 ) break;
+    if ( result == 0xFFEA ) {
+      checksum = 0xFFEA;
+      csum_passed = 0;
+      buffer[1] = spi_transfer16(0xFFFF);
+      for ( int f = 2; f < buffer[1]; f++ ) buffer[f] = spi_transfer16(0xFFFF);
+      for ( uint16_t c = 1; c < buffer[1] - 1; c++ ) checksum ^= buffer[c];
+      if ( checksum == buffer[buffer[1] - 1] ) {
+        csum_passed = 1;
+        break;
       }
     }
   }
   spi_deassert();
-  if ( checksum == response[3] ) return response[2];
-  return -1;
+  buffer[0] = csum_passed;
 }
 
 
@@ -112,38 +135,6 @@ SPI_MSTransfer_MASTER_FUNC void SPI_MSTransfer_MASTER_OPT::detectSlaves() {
     return;
   }
   Serial.printf("    No slaves detected, check connections.\n\n");
-}
-
-
-SPI_MSTransfer_MASTER_FUNC uint16_t SPI_MSTransfer_MASTER_OPT::transfer16(uint16_t *buffer, uint16_t length, uint16_t packetID) {
-  uint16_t checksum = 0;
-  bool crc_passed = 0, spi_fail = 0;
-  spi_assert();
-  spi_transfer16(0xDEAD);
-  spi_transfer16(slave_ID);
-  spi_transfer16(length + 1);
-  spi_transfer16(0xFAF);
-  spi_transfer16(packetID);
-  checksum ^= packetID;
-  for ( uint16_t i = 0; i < length; i++ ) {
-    spi_transfer16(buffer[i]);
-    checksum ^= buffer[i];
-  }
-  if ( spi_transfer16(checksum) != 0xCC00 ) spi_fail = 1;
-  for ( uint16_t i = 0, result = 0; i < 10; i++ ) {
-    result = spi_transfer16(0xFFFF);
-    if ( result == 0xA5A5 ) { /* CRC PASSED */
-      crc_passed = 1;
-      break;
-    }
-    if ( result == 0xE0E0 ) { /* CRC FAILED */
-      break;
-    }
-  }
-  spi_deassert();
-  if ( spi_fail ) return 0;
-  if ( crc_passed ) return 1;
-  return 0;
 }
 
 
