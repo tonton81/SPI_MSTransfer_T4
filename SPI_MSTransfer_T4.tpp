@@ -150,20 +150,11 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::begin() {
   SLAVE_CFGR1 = LPSPI_CFGR1_OUTCFG;
   SLAVE_SR = 0x3F00; /* Clear status register */
   SLAVE_TCR_REFRESH;
-  SLAVE_TDR = 0x0; /* dummy data, must populate initial TX slot */
+  SLAVE_TDR(0x0); /* dummy data, must populate initial TX slot */
   SLAVE_CR |= LPSPI_CR_MEN | LPSPI_CR_DBGEN | LPSPI_CR_DOZEN; /* Enable Module, Debug Mode, Doze Mode */
 #endif
 
   NVIC_ENABLE_IRQ(nvic_irq);
-}
-
-
-SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::ifLC(uint16_t data) {
-#if defined(KINETISL)
-  while ( !::digitalReadFast(10) && !(SLAVE_S & SPI_S_SPTEF) );
-  SLAVE_DH = data >> 8;
-  SLAVE_DL = data;
-#endif
 }
 
 
@@ -177,26 +168,26 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
     if ( buffer_pos >= SPI_MST_DATA_BUFFER_MAX ) buffer_pos = 0;
     data[buffer_pos] = SLAVE_RDR;
     if ( (data[0] != 0xDEAD) && (data[0] != 0xBEEF) ) {
-      ifLC(SLAVE_TDR = data[buffer_pos]);
+      SLAVE_TDR(data[buffer_pos]);
       buffer_pos = 0;
       continue;
     }
     else if ( data[0] == 0xBEEF ) { /* slave detection */
       if ( detectOnce && data[buffer_pos] == 0xFFFF ) {
         detectOnce = 0;
-        ifLC(SLAVE_TDR = slave_ID);
+        SLAVE_TDR(slave_ID);
       }
       else {
-        ifLC(SLAVE_TDR = data[buffer_pos]);
+        SLAVE_TDR(data[buffer_pos]);
       }
       buffer_pos++;
       continue;
     }
     else if ( data[1] != slave_ID ) {
-      ifLC(SLAVE_TDR = data[buffer_pos]);
+      SLAVE_TDR(data[buffer_pos]);
       buffer_pos = 0;
     }
-    else ifLC(SLAVE_TDR = 0xCC00);
+    else SLAVE_TDR(0xCC00);
 
     if ( data[2] ) len = data[2];
 
@@ -208,7 +199,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
       else { /* CRC Failed */
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          ifLC(SLAVE_TDR = 0xE0E0);
+          SLAVE_TDR(0xE0E0);
         SPI_ENDWAIT_STATE
       }
     }
@@ -224,7 +215,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         mstqueue.push_back(data, len + 5);
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          ifLC(SLAVE_TDR = 0xA5A5);
+          SLAVE_TDR(0xA5A5);
         SPI_ENDWAIT_STATE
       }
       /* ##################################################################### */
@@ -234,7 +225,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         if ( !smtqueue.size() ) {
           SPI_WAIT_STATE
             (void)SLAVE_RDR;
-            ifLC(SLAVE_TDR = 0xAD00);
+            SLAVE_TDR(0xAD00);
           SPI_ENDWAIT_STATE
         }
         else {
@@ -242,17 +233,18 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
           smtqueue.peek_front(buf, sizeof(buf) >> 1);
           SPI_WAIT_STATE
             command = SLAVE_RDR;
-            ifLC(SLAVE_TDR = 0xAD00 | smtqueue.size());
+            SLAVE_TDR(0xAD00 | smtqueue.size());
             if ( command == 0xCEB6 ) {
               SPI_WAIT_STATE
                 command = SLAVE_RDR;
                 if ( pos >= (sizeof(buf) >> 1) ) pos = 0;
-                ifLC(SLAVE_TDR = buf[pos++]);
+                SLAVE_TDR(buf[pos]);
+                pos++;
                 if ( command == 0xCE0A ) {
                   smtqueue.pop_front();
                   SPI_WAIT_STATE
                     command = SLAVE_RDR;
-                    ifLC(SLAVE_TDR = 0xD632);
+                    SLAVE_TDR(0xD632);
                   SPI_ENDWAIT_STATE
                 }
               SPI_ENDWAIT_STATE
@@ -267,7 +259,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         ::digitalWriteFast(data[4] >> 8, data[4] & 0x1);
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          ifLC(SLAVE_TDR = 0xA5A5);
+          SLAVE_TDR(0xA5A5);
         SPI_ENDWAIT_STATE
       }
       /* ##################################################################### */
@@ -279,7 +271,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         for ( uint16_t i = 0; i < 3; i++ ) buffer[3] ^= buffer[i];
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          ifLC(SLAVE_TDR = buffer[send_pos]);
+          SLAVE_TDR(buffer[send_pos]);
           if ( ++send_pos > 3 ) send_pos = 0;
         SPI_ENDWAIT_STATE
       }
@@ -290,7 +282,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         ::pinMode(data[4] >> 8, (uint8_t)data[4]);
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          ifLC(SLAVE_TDR = 0xA5A5);
+          SLAVE_TDR(0xA5A5);
         SPI_ENDWAIT_STATE
       }
       /* ##################################################################### */
