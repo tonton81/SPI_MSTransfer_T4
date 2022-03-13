@@ -3,15 +3,99 @@
 #include "SPI.h"
 
 
-static void lpspi4_slave_isr() {
+extern void __attribute__((weak)) spi0_slave_isr(void) {
+  _SPI0->SPI_MSTransfer_SLAVE_ISR();
+}
+
+extern void __attribute__((weak)) spi1_slave_isr(void) {
+  _SPI1->SPI_MSTransfer_SLAVE_ISR();
+}
+
+extern void __attribute__((weak)) spi2_slave_isr(void) {
+  _SPI2->SPI_MSTransfer_SLAVE_ISR();
+}
+
+extern void __attribute__((weak)) lpspi4_slave_isr() {
   _LPSPI4->SPI_MSTransfer_SLAVE_ISR();
 }
 
 
+SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::test() {
+//Serial.println((uint32_t)&X,HEX);
+//Serial.println((uint32_t)&spiAddr[0],HEX);
+}
+
+
 SPI_MSTransfer_T4_FUNC SPI_MSTransfer_T4_OPT::SPI_MSTransfer_T4() {
+
+#if defined(KINETISL)
+  if ( port == &SPI ) {
+    _SPI0 = this;
+    SIM_SCGC4 |= SIM_SCGC4_SPI0;
+    SIM_SCGC5 |= SIM_SCGC5_PORTA | SIM_SCGC5_PORTC;
+    nvic_irq = IRQ_SPI0;
+    spiAddr = &(*(volatile uint8_t*)(0x40076000));
+    _VectorsRam[16 + nvic_irq] = spi0_slave_isr;
+    CORE_PIN12_CONFIG = PORT_PCR_MUX(2);
+    CORE_PIN11_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
+    CORE_PIN10_CONFIG = PORT_PCR_PE | PORT_PCR_PS | PORT_PCR_MUX(2);
+    CORE_PIN13_CONFIG = PORT_PCR_MUX(2);
+  }
+  if ( port == &SPI1 ) {
+    _SPI1 = this;
+    SIM_SCGC4 |= SIM_SCGC4_SPI1;
+    SIM_SCGC5 |= SIM_SCGC5_PORTE;
+    nvic_irq = IRQ_SPI1;
+    spiAddr = &(*(volatile uint8_t*)(0x40077000));
+    _VectorsRam[16 + nvic_irq] = spi1_slave_isr;
+    CORE_PIN0_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
+    CORE_PIN5_CONFIG = PORT_PCR_MUX(2);
+    CORE_PIN6_CONFIG = PORT_PCR_PE | PORT_PCR_PS | PORT_PCR_MUX(2);
+    CORE_PIN20_CONFIG = PORT_PCR_MUX(2);
+  }
+
+#elif defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
+  if ( port == &SPI ) {
+    _SPI0 = this;
+    SIM_SCGC6 |= SIM_SCGC6_SPI0;
+    nvic_irq = IRQ_SPI0;
+    spiAddr = &(*(volatile uint32_t*)(0x4002C000));
+    _VectorsRam[16 + nvic_irq] = spi0_slave_isr;
+    CORE_PIN12_CONFIG = PORT_PCR_MUX(2);
+    CORE_PIN11_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
+    CORE_PIN10_CONFIG = PORT_PCR_PE | PORT_PCR_PS | PORT_PCR_MUX(2);
+    CORE_PIN13_CONFIG = PORT_PCR_MUX(2);
+  }
+#if defined(__MK64FX512__) || defined(__MK66FX1M0__)
+  if ( port == &SPI1 ) {
+    _SPI1 = this;
+    SIM_SCGC6 |= SIM_SCGC6_SPI1;
+    nvic_irq = IRQ_SPI1;
+    spiAddr = &(*(volatile uint32_t*)(0x4002D000));
+    _VectorsRam[16 + nvic_irq] = spi1_slave_isr;
+    CORE_PIN1_CONFIG = PORT_PCR_MUX(2);
+    CORE_PIN0_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
+    CORE_PIN31_CONFIG = PORT_PCR_PE | PORT_PCR_PS | PORT_PCR_MUX(2);
+    CORE_PIN32_CONFIG = PORT_PCR_MUX(2);
+  }
+  if ( port == &SPI2 ) {
+    _SPI2 = this;
+    SIM_SCGC3 |= SIM_SCGC3_SPI2;
+    nvic_irq = IRQ_SPI2;
+    spiAddr = &(*(volatile uint32_t*)(0x400AC000));
+    _VectorsRam[16 + nvic_irq] = spi2_slave_isr;
+    CORE_PIN53_CONFIG = PORT_PCR_MUX(2);
+    CORE_PIN43_CONFIG = PORT_PCR_PE | PORT_PCR_PS | PORT_PCR_MUX(2);
+    CORE_PIN52_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
+    CORE_PIN51_CONFIG = PORT_PCR_MUX(2);
+  }
+#endif
+
+
+#elif defined(__IMXRT1062__)
   if ( port == &SPI ) {
     _LPSPI4 = this;
-    _portnum = 3;
+    uint8_t _portnum = 3;
     spiAddr = &(*(volatile uint32_t*)(0x40394000 + (0x4000 * _portnum)));
     CCM_CCGR1 |= (3UL << 6);
     nvic_irq = 32 + _portnum;
@@ -32,18 +116,32 @@ SPI_MSTransfer_T4_FUNC SPI_MSTransfer_T4_OPT::SPI_MSTransfer_T4() {
     IOMUXC_SW_PAD_CTL_PAD_GPIO_B0_03 = IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3) | IOMUXC_PAD_PKE; /* LPSPI4 SCK (CLK) */
     IOMUXC_SW_PAD_CTL_PAD_GPIO_B0_00 = IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3) | IOMUXC_PAD_PKE; /* LPSPI4 PCS0 (CS) */
   } 
-}
-
-
-SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::swapPins(bool enable) {
-  SLAVE_PORT_ADDR;
-  SLAVE_CR &= ~LPSPI_CR_MEN; /* Disable Module */
-  SLAVE_CFGR1 = (SLAVE_CFGR1 & 0xFCFFFFFF) | (enable) ? (3UL << 24) : (0UL << 24);
-  SLAVE_CR |= LPSPI_CR_MEN; /* Enable Module */
+#endif
 }
 
 
 SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::begin() {
+
+#if defined(KINETISL)
+  SLAVE_C1 = 0;
+  SLAVE_C2 = 0x40;
+  SLAVE_BR = 0;
+  SLAVE_C1 = 0b11001100;
+
+#elif defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
+  SLAVE_MCR |= SPI_MCR_HALT | SPI_MCR_MDIS;
+  SLAVE_MCR = 0x00000000;
+  SLAVE_MCR &= ~SPI_MCR_HALT & ~SPI_MCR_MDIS;
+  SLAVE_CTAR0 = 0;
+  SLAVE_MCR |= SPI_MCR_HALT | SPI_MCR_MDIS;
+  SLAVE_CTAR0 = SPI_CTAR_FMSZ(16 - 1);
+  SLAVE_MCR &= ~SPI_MCR_HALT & ~SPI_MCR_MDIS;
+  SLAVE_MCR |= SPI_MCR_HALT | SPI_MCR_MDIS;
+  SLAVE_CTAR0 = SLAVE_CTAR0 & ~(SPI_CTAR_CPOL | SPI_CTAR_CPHA);
+  SLAVE_MCR &= ~SPI_MCR_HALT & ~SPI_MCR_MDIS;
+  SLAVE_RSER = 0x00020000;
+
+#elif defined(__IMXRT1062__)
   SLAVE_CR = LPSPI_CR_RST; /* Reset Module */
   SLAVE_CR = 0; /* Disable Module */
   SLAVE_FCR = 0;
@@ -54,7 +152,18 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::begin() {
   SLAVE_TCR_REFRESH;
   SLAVE_TDR = 0x0; /* dummy data, must populate initial TX slot */
   SLAVE_CR |= LPSPI_CR_MEN | LPSPI_CR_DBGEN | LPSPI_CR_DOZEN; /* Enable Module, Debug Mode, Doze Mode */
+#endif
+
   NVIC_ENABLE_IRQ(nvic_irq);
+}
+
+
+SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::ifLC(uint16_t data) {
+#if defined(KINETISL)
+  while ( !::digitalReadFast(10) && !(SLAVE_S & SPI_S_SPTEF) );
+  SLAVE_DH = data >> 8;
+  SLAVE_DL = data;
+#endif
 }
 
 
@@ -68,22 +177,27 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
     if ( buffer_pos >= SPI_MST_DATA_BUFFER_MAX ) buffer_pos = 0;
     data[buffer_pos] = SLAVE_RDR;
     if ( (data[0] != 0xDEAD) && (data[0] != 0xBEEF) ) {
-      SLAVE_TDR = data[buffer_pos];
+      ifLC(SLAVE_TDR = data[buffer_pos]);
       buffer_pos = 0;
       continue;
     }
     else if ( data[0] == 0xBEEF ) { /* slave detection */
       if ( detectOnce && data[buffer_pos] == 0xFFFF ) {
         detectOnce = 0;
-        SLAVE_TDR = slave_ID;
+        ifLC(SLAVE_TDR = slave_ID);
       }
-      else SLAVE_TDR = data[buffer_pos];
+      else {
+        ifLC(SLAVE_TDR = data[buffer_pos]);
+      }
+      buffer_pos++;
+      continue;
     }
     else if ( data[1] != slave_ID ) {
-      SLAVE_TDR = data[buffer_pos];
+      ifLC(SLAVE_TDR = data[buffer_pos]);
       buffer_pos = 0;
     }
-    else SLAVE_TDR = 0xCC00;
+    else ifLC(SLAVE_TDR = 0xCC00);
+
     if ( data[2] ) len = data[2];
 
     if ( buffer_pos == (len + 4) ) {  /* received payload, check CRC */ 
@@ -94,7 +208,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
       else { /* CRC Failed */
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          SLAVE_TDR = 0xE0E0;
+          ifLC(SLAVE_TDR = 0xE0E0);
         SPI_ENDWAIT_STATE
       }
     }
@@ -110,7 +224,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         mstqueue.push_back(data, len + 5);
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          SLAVE_TDR = 0xA5A5;
+          ifLC(SLAVE_TDR = 0xA5A5);
         SPI_ENDWAIT_STATE
       }
       /* ##################################################################### */
@@ -120,7 +234,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         if ( !smtqueue.size() ) {
           SPI_WAIT_STATE
             (void)SLAVE_RDR;
-            SLAVE_TDR = 0xAD00;
+            ifLC(SLAVE_TDR = 0xAD00);
           SPI_ENDWAIT_STATE
         }
         else {
@@ -128,17 +242,17 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
           smtqueue.peek_front(buf, sizeof(buf) >> 1);
           SPI_WAIT_STATE
             command = SLAVE_RDR;
-            SLAVE_TDR = 0xAD00 | smtqueue.size();
+            ifLC(SLAVE_TDR = 0xAD00 | smtqueue.size());
             if ( command == 0xCEB6 ) {
               SPI_WAIT_STATE
                 command = SLAVE_RDR;
                 if ( pos >= (sizeof(buf) >> 1) ) pos = 0;
-                SLAVE_TDR = buf[pos++];
+                ifLC(SLAVE_TDR = buf[pos++]);
                 if ( command == 0xCE0A ) {
                   smtqueue.pop_front();
                   SPI_WAIT_STATE
                     command = SLAVE_RDR;
-                    SLAVE_TDR = 0xD632;
+                    ifLC(SLAVE_TDR = 0xD632);
                   SPI_ENDWAIT_STATE
                 }
               SPI_ENDWAIT_STATE
@@ -153,7 +267,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         ::digitalWriteFast(data[4] >> 8, data[4] & 0x1);
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          SLAVE_TDR = 0xA5A5;
+          ifLC(SLAVE_TDR = 0xA5A5);
         SPI_ENDWAIT_STATE
       }
       /* ##################################################################### */
@@ -165,7 +279,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         for ( uint16_t i = 0; i < 3; i++ ) buffer[3] ^= buffer[i];
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          SLAVE_TDR = buffer[send_pos];
+          ifLC(SLAVE_TDR = buffer[send_pos]);
           if ( ++send_pos > 3 ) send_pos = 0;
         SPI_ENDWAIT_STATE
       }
@@ -176,7 +290,7 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
         ::pinMode(data[4] >> 8, (uint8_t)data[4]);
         SPI_WAIT_STATE
           (void)SLAVE_RDR;
-          SLAVE_TDR = 0xA5A5;
+          ifLC(SLAVE_TDR = 0xA5A5);
         SPI_ENDWAIT_STATE
       }
       /* ##################################################################### */
@@ -186,12 +300,12 @@ SPI_MSTransfer_T4_FUNC void SPI_MSTransfer_T4_OPT::SPI_MSTransfer_SLAVE_ISR() {
     } /* end of 0xDEAD CMD */
 
   }
-  SLAVE_SR = 0x3F00; /* Clear remaining flags on exit */
-  asm volatile ("dsb");
+  SPI_ISR_EXIT
 }
 
 
 SPI_MSTransfer_T4_FUNC uint16_t SPI_MSTransfer_T4_OPT::transfer16(uint16_t *buffer, uint16_t length, uint16_t packetID) {
+  if ( smtqueue.size() == smtqueue.capacity() ) return 0;
   uint16_t data[7 + length], checksum = 0, data_pos = 0;
   data[data_pos] = 0xAA55; checksum ^= data[data_pos]; data_pos++; // HEADER
   data[data_pos] = sizeof(data) >> 1; checksum ^= data[data_pos]; data_pos++; // DATA SIZE
