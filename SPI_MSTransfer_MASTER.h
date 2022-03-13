@@ -41,8 +41,13 @@ SPI_MSTransfer_MASTER_CLASS class SPI_MSTransfer_MASTER : public SPI_MSTransfer_
     int digitalRead(uint8_t pin);
     int digitalReadFast(uint8_t pin) { return digitalRead(pin); }
     void delayTransfers(uint16_t uS) { delayed_transfers = uS; }
+    uint16_t analogRead(uint8_t pin);
+    void analogReadResolution(uint8_t bits);
+    void analogWriteResolution(uint8_t bits);
+    void analogWrite(uint8_t pin, uint16_t val);
 
   private:
+    void process_data(uint16_t *buffer, uint16_t length, uint16_t command);
     uint16_t spi_transfer16(uint16_t data);
     void spi_assert();
     void spi_deassert();
