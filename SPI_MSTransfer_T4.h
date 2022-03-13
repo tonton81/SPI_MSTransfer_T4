@@ -13,7 +13,7 @@
 #define SLAVE_IER spiAddr[6]
 #define SLAVE_CFGR0 spiAddr[8]
 #define SLAVE_CFGR1 spiAddr[9]
-#define SLAVE_TDR spiAddr[25]
+#define SLAVE_TDR(x) spiAddr[25] = (x)
 #define SLAVE_RDR spiAddr[29]
 #define SLAVE_SR spiAddr[5]
 #define SLAVE_TCR_REFRESH spiAddr[24] = (2UL << 27) | LPSPI_TCR_FRAMESZ(16 - 1)
@@ -22,12 +22,11 @@
 #define SLAVE_MCR spiAddr[0]
 #define SLAVE_CTAR0 spiAddr[3]
 #define SLAVE_RSER spiAddr[12]
-#define SLAVE_TDR spiAddr[13] // SPIx_PUSHR_SLAVE
+#define SLAVE_TDR(x) spiAddr[13] = (x) // SPIx_PUSHR_SLAVE
 #define SLAVE_RDR spiAddr[14] // SPIx_POPR
 #define SLAVE_SR spiAddr[11]
 
 #elif defined(KINETISL)
-uint16_t SLAVE_TDR;
 #define SLAVE_S spiAddr[0]
 #define SLAVE_DL spiAddr[6]
 #define SLAVE_DH spiAddr[7]
@@ -35,6 +34,10 @@ uint16_t SLAVE_TDR;
 #define SLAVE_C2 spiAddr[2]
 #define SLAVE_BR spiAddr[1]
 #define SLAVE_RDR (((uint16_t)(SLAVE_DH << 8)) | SLAVE_DL)
+#define SLAVE_TDR(x) \
+    while ( !::digitalReadFast(10) && !(SLAVE_S & SPI_S_SPTEF) ); \
+    (SLAVE_DH = (uint8_t)((uint16_t)(x) >> 8)); \
+    (SLAVE_DL = ((uint8_t)(x)));
 #endif
 
 
@@ -125,7 +128,6 @@ SPI_MSTransfer_T4_CLASS class SPI_MSTransfer_T4 : public SPI_MSTransfer_T4_Base 
     void onTransfer(_slave_handler_ptr handler) { _slave_handler = handler; }
     uint32_t events();
     void test();
-    void ifLC(uint16_t data); /* if Teensy LC, process both DL & DH registers */
 
   private:
 #if defined(KINETISL)
