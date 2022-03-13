@@ -17,17 +17,12 @@ struct AsyncMST {
 typedef void (*_master_handler_ptr)(uint16_t* buffer, uint16_t length, AsyncMST info);
 typedef std::function<void(AsyncMST info)> _detectPtr;
 
-typedef void (*_SPI_ptr)();
-
 #define SPI_MSTransfer_MASTER_CLASS template<SPIClass* port, uint8_t cs_pin, uint32_t slave_ID, uint32_t spi_speed = 2000000>
 #define SPI_MSTransfer_MASTER_FUNC template<SPIClass* port, uint8_t cs_pin, uint32_t slave_ID, uint32_t spi_speed>
 #define SPI_MSTransfer_MASTER_OPT SPI_MSTransfer_MASTER<port, cs_pin, slave_ID, spi_speed>
 
-extern SPIClass SPI;
-
 class SPI_MSTransfer_MASTER_Base {
   public:
-
 };
 
 Circular_Buffer<uint16_t, (uint32_t)pow(2, ceil(log(SPI_MST_QUEUE_SLOTS) / log(2))), SPI_MST_DATA_BUFFER_MAX> mstqueue;
@@ -45,13 +40,16 @@ SPI_MSTransfer_MASTER_CLASS class SPI_MSTransfer_MASTER : public SPI_MSTransfer_
     void digitalWriteFast(uint8_t pin, bool state) { return digitalWrite(pin, state); }
     int digitalRead(uint8_t pin);
     int digitalReadFast(uint8_t pin) { return digitalRead(pin); }
+    void delayTransfers(uint16_t uS) { delayed_transfers = uS; }
 
   private:
+    uint16_t spi_transfer16(uint16_t data);
     void spi_assert();
     void spi_deassert();
     int _portnum = 0;
     uint32_t nvic_irq = 0;
     _master_handler_ptr _master_handler;
+    volatile uint16_t delayed_transfers = 0;
 };
 
 #include "SPI_MSTransfer_MASTER.tpp"
